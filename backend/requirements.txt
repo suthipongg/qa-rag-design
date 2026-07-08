@@ -1,0 +1,30 @@
+# Core
+fastapi==0.139.0
+uvicorn[standard]==0.34.3
+pydantic-settings==2.14.2
+
+# Database
+sqlalchemy==2.0.51
+aiosqlite==0.22.1
+
+# Vector Store
+qdrant-client==1.18.0
+
+# Embeddings - BGE-M3
+FlagEmbedding==1.4.0
+
+# LLM - Gemini
+google-genai==2.10.0
+
+# Document Processing
+PyMuPDF==1.28.0
+pandas==2.3.0
+openpyxl==3.1.5
+
+# Utilities
+python-multipart==0.0.20
+python-dotenv==1.2.2
+
+# Testing
+pytest==9.1.1
+httpx2==2.5.0
