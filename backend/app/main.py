@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.db.sqlite.connection import init_db_manager
+from app.routers import collections
 
 
 @asynccontextmanager
@@ -12,8 +14,16 @@ async def lifespan(app: FastAPI):
     print(f"📦 Embedding provider: {settings.EMBEDDING_PROVIDER}")
     print(f"🤖 LLM model: {settings.GEMINI_MODEL}")
     print(f"🔍 Qdrant: {settings.QDRANT_HOST}:{settings.QDRANT_PORT}")
+    
+    db_manager = init_db_manager(database_url=settings.DATABASE_URL, debug=settings.DEBUG)
+    await db_manager.init_db()
+    print("✅ Database ready")
+    
     yield
+    
     print("👋 Shutting down...")
+    await db_manager.close()
+    print("💤 Database connection closed")
 
 
 def create_app() -> FastAPI:
@@ -41,6 +51,8 @@ def create_app() -> FastAPI:
             "app": settings.APP_NAME,
             "version": settings.APP_VERSION,
         }
+
+    app.include_router(collections.router, prefix="/api")
 
     return app
 
