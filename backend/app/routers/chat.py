@@ -44,10 +44,17 @@ async def ask_question(
                     "content": msg.content
                 })
         
-        
+        rewritten_question = None
+        search_query = body.question
+        if history:
+            rewritten_question = await llm_service.rewrite_question(
+                current_question=body.question,
+                history=history
+            )
+            search_query = rewritten_question
         retrieved_chunks = await retrieval_service.search(
             collection_id=collection_id, 
-            query=body.question
+            query=search_query
         )
         
         answer = await llm_service.generate_answer(
