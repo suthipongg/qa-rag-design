@@ -8,6 +8,7 @@ from app.routers import collections, documents
 from app.services.embeddings import get_embedding_provider
 from app.services.indexing import IndexingService
 from app.db.qdrant.connection import init_qdrant_client
+from app.services.chunking import ChunkingService
 
 
 @asynccontextmanager
@@ -32,6 +33,8 @@ async def lifespan(app: FastAPI):
     qdrant_client = init_qdrant_client(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
     indexing = IndexingService(client=qdrant_client, embedding=embedding)
     app.state.indexing = indexing
+    
+    chunking = ChunkingService(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
     
     yield
     

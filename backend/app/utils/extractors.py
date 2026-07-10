@@ -1,3 +1,4 @@
+from gradio.tunneling import CHUNK_SIZE
 import io
 import fitz  # PyMuPDF
 import pandas as pd
@@ -38,15 +39,16 @@ def extract_markdown(file_content: bytes) -> List[ExtractedPage]:
     }]
 
 
+CHUNK_SIZE = 20
+
 def extract_csv(file_content: bytes) -> List[ExtractedPage]:
     df = pd.read_csv(io.BytesIO(file_content))
     if df.empty:
         return []
 
     pages = []
-    chunk_size = 20
-    for start_idx in range(0, len(df), chunk_size):
-        end_idx = min(start_idx + chunk_size, len(df))
+    for start_idx in range(0, len(df), CHUNK_SIZE):
+        end_idx = min(start_idx + CHUNK_SIZE, len(df))
         sub_df = df.iloc[start_idx:end_idx]
         
         text_lines = []
@@ -73,9 +75,8 @@ def extract_xlsx(file_content: bytes) -> List[ExtractedPage]:
         if df.empty:
             continue
             
-        chunk_size = 20
-        for start_idx in range(0, len(df), chunk_size):
-            end_idx = min(start_idx + chunk_size, len(df))
+        for start_idx in range(0, len(df), CHUNK_SIZE):
+            end_idx = min(start_idx + CHUNK_SIZE, len(df))
             sub_df = df.iloc[start_idx:end_idx]
             
             text_lines = [f"Sheet: {sheet_name}"]
