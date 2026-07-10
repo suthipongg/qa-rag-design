@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+import os
 
 
 class Settings(BaseSettings):
@@ -7,6 +8,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Document Q&A RAG Assistant"
     APP_VERSION: str = "0.0.0"
     DEBUG: bool = False
+    
+    UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../uploads")
 
     # API
     API_PREFIX: str = "/api"

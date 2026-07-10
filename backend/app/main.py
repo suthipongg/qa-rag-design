@@ -10,10 +10,13 @@ from app.services.indexing import IndexingService
 from app.db.qdrant.connection import init_qdrant_client
 from app.services.chunking import ChunkingService
 
+import os
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    
     print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     print(f"📦 Embedding provider: {settings.EMBEDDING_PROVIDER}")
     print(f"🤖 LLM model: {settings.GEMINI_MODEL}")
@@ -37,6 +40,7 @@ async def lifespan(app: FastAPI):
     app.state.embedding = embedding
     app.state.indexing = indexing
     app.state.chunking = chunking
+    app.state.upload_dir = settings.UPLOAD_DIR
     
     yield
     

@@ -11,6 +11,9 @@ from app.schemas.collections import (
 )
 from app.schemas.common import StatusMessage
 
+import shutil
+import os
+
 router = APIRouter(prefix="/collections", tags=["Collections"])
 
 
@@ -96,6 +99,13 @@ async def delete_collection(
         await indexing_service.delete_collection(collection_id)
     except Exception as e:
         print(f"⚠️ Warning: Failed to delete Qdrant collection {collection_id}: {e}")
+
+    try:
+        collection_dir = os.path.join(request.app.state.upload_dir, str(collection_id))
+        if os.path.exists(collection_dir):
+            shutil.rmtree(collection_dir)
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to delete collection files: {e}")
 
     await db.delete(collection)
     await db.commit()

@@ -7,7 +7,7 @@ from app.dependencies import get_db
 from app.db.sqlite.models import Document, Collection
 from app.schemas.documents import DocumentResponse, DocumentListResponse
 from app.schemas.common import StatusMessage
-from app.services.ingestion import ingest_document, delete_document_file, UPLOAD_DIR
+from app.services.ingestion import ingest_document, delete_document_file
 
 router = APIRouter(tags=["Documents"])
 
@@ -33,6 +33,7 @@ async def upload_documents(
                 embedding_provider=request.app.state.embedding,
                 indexing_service=request.app.state.indexing,
                 chunking_service=request.app.state.chunking,
+                upload_dir=request.app.state.upload_dir
             )
             uploaded_records.append(doc)
         except ValueError as ve:
@@ -72,7 +73,7 @@ async def delete_document(
     if not document:
         raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
 
-    file_path = os.path.join(UPLOAD_DIR, f"{document.collection_id}_{document.filename}")
+    file_path = os.path.join(request.app.state.upload_dir, str(document.collection_id), document.filename)
     try:
         await delete_document_file(file_path)
     except Exception as e:

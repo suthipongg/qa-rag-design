@@ -7,26 +7,15 @@ from app.db.sqlite.models import Document, DocumentStatus, Collection
 from app.utils.extractors import extract_text_content
 
 
-UPLOAD_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
-    "uploads"
-)
-
-
-def ensure_upload_dir():
-    if not os.path.exists(UPLOAD_DIR):
-        os.makedirs(UPLOAD_DIR)
-
-
 async def ingest_document(
     collection_id: int, 
     file: UploadFile, 
     db: AsyncSession,
     embedding_provider,
     indexing_service,
-    chunking_service
+    chunking_service,
+    upload_dir: str
 ) -> Document:
-    ensure_upload_dir()
     
     result = await db.execute(select(Collection).where(Collection.id == collection_id))
     collection = result.scalar_one_or_none()
@@ -39,7 +28,9 @@ async def ingest_document(
     if ext not in ["pdf", "md", "txt", "csv", "xlsx", "xls"]:
         raise ValueError(f"Unsupported file format: .{ext}")
         
-    file_path = os.path.join(UPLOAD_DIR, f"{collection_id}_{filename}")
+    collection_dir = os.path.join(upload_dir, str(collection_id))
+    os.makedirs(collection_dir, exist_ok=True)
+    file_path = os.path.join(collection_dir, filename)
     
     await file.seek(0)
     file_content = await file.read()
