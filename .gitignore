@@ -5,3 +5,7 @@ venv/
 app_data.db
 uploads/
 test_files/
+
+
+node_modules
+dist
