@@ -1,6 +1,6 @@
 import asyncio
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Any
 import numpy as np
 
 _bge_model = None
@@ -23,18 +23,18 @@ def get_bge_model(model_name:str):
 
 class BaseEmbeddingProvider(ABC):
     @abstractmethod
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Generate dense embeddings for a list of documents."""
+    async def embed_documents(self, texts: list[str]) -> list[dict[str, Any]]:
+        """Generate dense and sparse embeddings for a list of documents."""
         pass
 
     @abstractmethod
-    async def embed_query(self, text: str) -> List[float]:
-        """Generate dense embedding for a single query."""
+    async def embed_query(self, text: str) -> dict[str, Any]:
+        """Generate dense and sparse embedding for a single query."""
         pass
 
     @abstractmethod
     def get_dimension(self) -> int:
-        """Return the dimension of the embedding vectors."""
+        """Return the dimension of the dense embedding vectors."""
         pass
 
 
@@ -43,7 +43,7 @@ class BGEM3EmbeddingProvider(BaseEmbeddingProvider):
         self.model = None
         self.model_name = model_name
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[dict[str, Any]]:
         self.model = get_bge_model(self.model_name)
         if not texts:
             return []
@@ -52,17 +52,33 @@ class BGEM3EmbeddingProvider(BaseEmbeddingProvider):
             output = self.model.encode(
                 texts, 
                 return_dense=True, 
-                return_sparse=False, 
+                return_sparse=True, 
                 return_colbert_vecs=False
             )
             dense_vecs = output['dense_vecs']
-            if isinstance(dense_vecs, np.ndarray):
-                return dense_vecs.tolist()
-            return [list(map(float, vec)) for vec in dense_vecs]
+            lexical_weights = output.get('lexical_weights', [])
+            
+            results = []
+            for i, dense in enumerate(dense_vecs):
+                dense_list = dense.tolist() if isinstance(dense, np.ndarray) else list(map(float, dense))
+                sparse = None
+                
+                if lexical_weights and i < len(lexical_weights):
+                    lex = lexical_weights[i]
+                    indices = []
+                    values = []
+                    for k, v in lex.items():
+                        indices.append(int(k))
+                        values.append(float(v))
+                    if indices:
+                        sparse = {"indices": indices, "values": values}
+                        
+                results.append({"dense": dense_list, "sparse": sparse})
+            return results
 
         return await asyncio.to_thread(_encode)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> dict[str, Any]:
         embeddings = await self.embed_documents([text])
         return embeddings[0]
 
@@ -78,7 +94,7 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
 
-    async def embed_documents(self, texts: List[str]) -> List[List[float]]:
+    async def embed_documents(self, texts: list[str]) -> list[dict[str, Any]]:
         if not texts:
             return []
         
@@ -90,10 +106,10 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
                 model=self.model_name,
                 contents=contents,
             )
-            return [embedding.values for embedding in response.embeddings]
+            return [{"dense": embedding.values, "sparse": None} for embedding in response.embeddings]
         return await asyncio.to_thread(_embed)
 
-    async def embed_query(self, text: str) -> List[float]:
+    async def embed_query(self, text: str) -> dict[str, Any]:
         embeddings = await self.embed_documents([text])
         return embeddings[0]
 

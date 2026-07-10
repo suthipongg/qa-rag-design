@@ -12,25 +12,56 @@ class RetrievalService:
     async def search(self, collection_id: int, query: str, top_k: int = None) -> List[Dict[str, Any]]:
         k = top_k or self.top_k
         
-        query_vector = await self.embedding_provider.embed_query(query)
+        emb_dict = await self.embedding_provider.embed_query(query)
         if not await self.client.collection_exists(self.collection_name):
             return []
-        
-        search_result = await self.client.query_points(
-            collection_name=self.collection_name,
-            query=query_vector,
-            query_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="collection_id",
-                        match=models.MatchValue(value=collection_id)
-                    )
-                ]
-            ),
-            limit=k,
-            with_payload=True,
-            with_vectors=False
+            
+        common_filter = models.Filter(
+            must=[
+                models.FieldCondition(
+                    key="collection_id",
+                    match=models.MatchValue(value=collection_id)
+                )
+            ]
         )
+        
+        if emb_dict.get("sparse"):
+            prefetch = [
+                models.Prefetch(
+                    query=emb_dict["dense"],
+                    using="",
+                    limit=k * 2,
+                    filter=common_filter
+                ),
+                models.Prefetch(
+                    query=models.SparseVector(
+                        indices=emb_dict["sparse"]["indices"],
+                        values=emb_dict["sparse"]["values"]
+                    ),
+                    using="sparse",
+                    limit=k * 2,
+                    filter=common_filter
+                )
+            ]
+            
+            search_result = await self.client.query_points(
+                collection_name=self.collection_name,
+                prefetch=prefetch,
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                limit=k,
+                with_payload=True,
+                with_vectors=False
+            )
+        else:
+            search_result = await self.client.query_points(
+                collection_name=self.collection_name,
+                query=emb_dict["dense"],
+                using="",
+                query_filter=common_filter,
+                limit=k,
+                with_payload=True,
+                with_vectors=False
+            )
         
         results = []
         for scored_point in search_result.points:

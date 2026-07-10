@@ -14,13 +14,16 @@ class IndexingService:
     async def ensure_collection(self) -> None:
         exists = await self.client.collection_exists(self.collection_name)
         if not exists:
-            print(f"Creating Qdrant collection: {self.collection_name} with dimension {self.dimension}")
+            print(f"Creating Qdrant collection: {self.collection_name} with dimension {self.dimension} and sparse support")
             await self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=models.VectorParams(
                     size=self.dimension,
                     distance=models.Distance.COSINE
-                )
+                ),
+                sparse_vectors_config={
+                    "sparse": models.SparseVectorParams()
+                }
             )
             await self.client.create_payload_index(
                 collection_name=self.collection_name,
@@ -38,12 +41,12 @@ class IndexingService:
         collection_id: int, 
         document_id: int, 
         chunks: List[Dict[str, Any]], 
-        embeddings: List[List[float]]
+        embeddings: List[Dict[str, Any]]
     ) -> None:
         await self.ensure_collection()
         
         points = []
-        for i, (chunk, vector) in enumerate(zip(chunks, embeddings)):
+        for i, (chunk, emb_dict) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid4())
             
             payload = {
@@ -56,10 +59,17 @@ class IndexingService:
                 "row_range": chunk.get("row_range"),
             }
             
+            vector_dict = {"": emb_dict["dense"]}
+            if emb_dict.get("sparse"):
+                vector_dict["sparse"] = models.SparseVector(
+                    indices=emb_dict["sparse"]["indices"],
+                    values=emb_dict["sparse"]["values"]
+                )
+            
             points.append(
                 models.PointStruct(
                     id=point_id,
-                    vector=vector,
+                    vector=vector_dict,
                     payload=payload
                 )
             )
