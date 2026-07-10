@@ -82,10 +82,13 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
         if not texts:
             return []
         
+        from google.genai import types
+        contents = [types.Content(parts=[types.Part.from_text(text=txt)]) for txt in texts]
+        
         def _embed():
             response = self.client.models.embed_content(
                 model=self.model_name,
-                contents=texts,
+                contents=contents,
             )
             return [embedding.values for embedding in response.embeddings]
         return await asyncio.to_thread(_embed)
