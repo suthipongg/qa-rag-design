@@ -1,4 +1,3 @@
-from gradio.tunneling import CHUNK_SIZE
 import io
 import fitz  # PyMuPDF
 import pandas as pd

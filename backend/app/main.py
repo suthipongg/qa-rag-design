@@ -21,7 +21,6 @@ async def lifespan(app: FastAPI):
     
     db_manager = init_db_manager(database_url=settings.DATABASE_URL, debug=settings.DEBUG)
     await db_manager.init_db()
-    app.state.db_manager = db_manager
     print("✅ Database ready")
     
     embedding = get_embedding_provider(
@@ -32,9 +31,12 @@ async def lifespan(app: FastAPI):
     
     qdrant_client = init_qdrant_client(host=settings.QDRANT_HOST, port=settings.QDRANT_PORT)
     indexing = IndexingService(client=qdrant_client, embedding=embedding)
-    app.state.indexing = indexing
-    
     chunking = ChunkingService(chunk_size=settings.CHUNK_SIZE, chunk_overlap=settings.CHUNK_OVERLAP)
+    
+    app.state.db_manager = db_manager
+    app.state.embedding = embedding
+    app.state.indexing = indexing
+    app.state.chunking = chunking
     
     yield
     

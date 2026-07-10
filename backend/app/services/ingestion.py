@@ -21,7 +21,10 @@ def ensure_upload_dir():
 async def ingest_document(
     collection_id: int, 
     file: UploadFile, 
-    db: AsyncSession
+    db: AsyncSession,
+    embedding_provider,
+    indexing_service,
+    chunking_service
 ) -> Document:
     ensure_upload_dir()
     
@@ -61,13 +64,21 @@ async def ingest_document(
         await db.commit()
         
         extracted_pages = extract_text_content(file_content, filename)
+        chunks = chunking_service.chunk_document(filename, extracted_pages)
+        
+        if chunks:
+            texts = [c["text"] for c in chunks]
+            embeddings = await embedding_provider.embed_documents(texts)
+            await indexing_service.index_chunks(collection_id, doc_record.id, chunks, embeddings)
         
         doc_record.status = DocumentStatus.INDEXED
-        doc_record.chunk_count = len(extracted_pages)
+        doc_record.chunk_count = len(chunks)
         await db.commit()
         await db.refresh(doc_record)
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         doc_record.status = DocumentStatus.FAILED
         doc_record.error_message = str(e)
         await db.commit()

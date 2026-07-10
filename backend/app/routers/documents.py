@@ -15,6 +15,7 @@ router = APIRouter(tags=["Documents"])
 @router.post("/collections/{collection_id}/documents", response_model=list[DocumentResponse], status_code=status.HTTP_201_CREATED)
 async def upload_documents(
     collection_id: int,
+    request: Request,
     files: list[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db)
 ):
@@ -25,7 +26,14 @@ async def upload_documents(
     uploaded_records = []
     for file in files:
         try:
-            doc = await ingest_document(collection_id, file, db)
+            doc = await ingest_document(
+                collection_id=collection_id, 
+                file=file, 
+                db=db,
+                embedding_provider=request.app.state.embedding,
+                indexing_service=request.app.state.indexing,
+                chunking_service=request.app.state.chunking,
+            )
             uploaded_records.append(doc)
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve))
