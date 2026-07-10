@@ -1,45 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from './services/api';
-import type { Collection, Document } from './types';
-import { 
-  FolderPlus, 
-  Trash2, 
-  UploadCloud, 
-  FileText, 
-  CheckCircle2, 
-  AlertCircle, 
-  Clock, 
-  BookOpen,
-  Plus
-} from 'lucide-react';
-import { format } from 'date-fns';
+import type { Collection, Document, Citation, ChatMessage } from './types';
+import { FolderPlus, FileText, Search, MessageSquare } from 'lucide-react';
+import { Sidebar } from './components/Sidebar';
+import { DocumentsTab } from './components/DocumentsTab';
+import { RetrievalPlaygroundTab } from './components/RetrievalPlaygroundTab';
+import { ChatTab } from './components/ChatTab';
 
 function App() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [activeCollection, setActiveCollection] = useState<Collection | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newColName, setNewColName] = useState('');
-  const [newColDesc, setNewColDesc] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load collections on mount
+  const [activeTab, setActiveTab] = useState<'documents' | 'retrieval' | 'chat'>('documents');
+
+  const [retrievedChunks, setRetrievedChunks] = useState<Citation[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isChatSending, setIsChatSending] = useState(false);
+
   useEffect(() => {
     fetchCollections();
   }, []);
 
-  // Load documents when active collection changes
   useEffect(() => {
     if (activeCollection) {
       fetchDocuments(activeCollection.id);
-      
-      // Auto-refresh documents every 5 seconds to get processing status
       const interval = setInterval(() => fetchDocuments(activeCollection.id), 5000);
       return () => clearInterval(interval);
     } else {
       setDocuments([]);
     }
+  }, [activeCollection]);
+
+  useEffect(() => {
+    setActiveTab('documents');
+    setRetrievedChunks([]);
+    setChatHistory([]);
+    setConversationId(null);
   }, [activeCollection]);
 
   const fetchCollections = async () => {
@@ -60,15 +61,10 @@ function App() {
     }
   };
 
-  const handleCreateCollection = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newColName.trim()) return;
+  const handleCreateCollection = async (name: string, desc: string) => {
     try {
-      const newCol = await api.createCollection(newColName, newColDesc);
+      const newCol = await api.createCollection(name, desc);
       setCollections([...collections, newCol]);
-      setIsModalOpen(false);
-      setNewColName('');
-      setNewColDesc('');
       setActiveCollection(newCol);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Error creating collection');
@@ -99,7 +95,7 @@ function App() {
       alert(error instanceof Error ? error.message : 'Upload failed');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      e.target.value = '';
     }
   };
 
@@ -113,125 +109,131 @@ function App() {
     }
   };
 
-  const renderStatus = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-      case 'indexed': 
-        return <span className="status-badge status-completed"><CheckCircle2 size={12}/> Ready</span>;
-      case 'processing': return <span className="status-badge status-processing"><Clock size={12}/> Indexing...</span>;
-      case 'error': return <span className="status-badge status-error"><AlertCircle size={12}/> Failed</span>;
-      default: return <span className="status-badge"><Clock size={12}/> {status}</span>;
+  const handleRetrieveTest = async (query: string, topK: number) => {
+    if (!activeCollection || !query.trim()) return;
+    setIsSearching(true);
+    try {
+      const chunks = await api.retrieveChunks(activeCollection.id, query, topK);
+      setRetrievedChunks(chunks);
+    } catch (error) {
+      alert('Error searching chunks');
+      console.error(error);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleChatSubmit = async (query: string) => {
+    if (!activeCollection || !query.trim() || isChatSending) return;
+
+    const userMsg: ChatMessage = { role: 'user', content: query };
+    setChatHistory(prev => [...prev, userMsg]);
+    setIsChatSending(true);
+
+    try {
+      const res = await api.askQuestion(activeCollection.id, query, conversationId || undefined);
+      if (!conversationId) {
+        setConversationId(res.conversation_id);
+      }
+      
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: res.answer,
+        rewritten_question: res.rewritten_question || undefined,
+        citations: res.citations,
+        has_sufficient_evidence: res.has_sufficient_evidence
+      };
+      
+      setChatHistory(prev => {
+        const newHistory = [...prev];
+        const lastUserIdx = newHistory.length - 1;
+        if (newHistory[lastUserIdx].role === 'user' && res.rewritten_question) {
+           newHistory[lastUserIdx] = { ...newHistory[lastUserIdx], rewritten_question: res.rewritten_question };
+        }
+        return [...newHistory, assistantMsg];
+      });
+
+    } catch (error) {
+      const errMsg: ChatMessage = {
+        role: 'assistant',
+        content: 'Error: Failed to get answer from server.'
+      };
+      setChatHistory(prev => [...prev, errMsg]);
+      console.error(error);
+    } finally {
+      setIsChatSending(false);
     }
   };
 
   return (
     <div className="app-container">
-      {/* Sidebar */}
-      <div className="sidebar glass-panel">
-        <h2 className="title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          <BookOpen size={24} /> Knowledge
-        </h2>
-        
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)} style={{ width: '100%' }}>
-          <Plus size={18} /> New Collection
-        </button>
+      <Sidebar 
+        collections={collections}
+        activeCollection={activeCollection}
+        onSelectCollection={setActiveCollection}
+        onCreateCollection={handleCreateCollection}
+        onDeleteCollection={handleDeleteCollection}
+      />
 
-        <div className="collection-list">
-          {collections.map(col => (
-            <div 
-              key={col.id} 
-              className={`collection-item ${activeCollection?.id === col.id ? 'active' : ''}`}
-              onClick={() => setActiveCollection(col)}
-            >
-              <div>
-                <div className="collection-name">{col.name}</div>
-                <div className="collection-meta">
-                  {format(new Date(col.created_at), 'MMM d, yyyy')}
-                </div>
-              </div>
-              <button 
-                className="btn btn-icon btn-danger" 
-                onClick={(e) => handleDeleteCollection(col.id, e)}
-                style={{ padding: '0.25rem', border: 'none', background: 'transparent' }}
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main Content */}
       <div className="main-content glass-panel">
         {activeCollection ? (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
               <div>
-                <h1 className="title" style={{ marginBottom: '0.5rem' }}>{activeCollection.name}</h1>
+                <h1 className="title" style={{ marginBottom: '0.25rem' }}>{activeCollection.name}</h1>
                 {activeCollection.description && (
                   <p style={{ color: 'var(--text-secondary)' }}>{activeCollection.description}</p>
                 )}
               </div>
             </div>
 
-            <h3 className="section-title">Upload Document</h3>
-            <div 
-              className="upload-zone"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <UploadCloud size={48} className="upload-icon" />
-              <div>
-                <div style={{ fontSize: '1.125rem', fontWeight: 500, marginBottom: '0.5rem' }}>
-                  Click to upload a document
-                </div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Supports PDF, TXT, DOCX, MD, CSV, Excel (Max 10MB)
-                </div>
-              </div>
-              {isUploading && <div style={{ color: 'var(--accent-color)' }}>Uploading...</div>}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                style={{ display: 'none' }} 
-                onChange={handleFileUpload}
-                accept=".pdf,.txt,.md,.docx,.csv,.xlsx,.xls"
-              />
+            <div className="tab-container">
+              <button 
+                className={`tab-btn ${activeTab === 'documents' ? 'active' : ''}`}
+                onClick={() => setActiveTab('documents')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <FileText size={16} /> Documents
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'retrieval' ? 'active' : ''}`}
+                onClick={() => setActiveTab('retrieval')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Search size={16} /> Retrieval Playground
+              </button>
+              <button 
+                className={`tab-btn ${activeTab === 'chat' ? 'active' : ''}`}
+                onClick={() => setActiveTab('chat')}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <MessageSquare size={16} /> Chat Q&A
+              </button>
             </div>
 
-            <h3 className="section-title" style={{ marginTop: '3rem' }}>Documents ({documents.length})</h3>
-            {documents.length > 0 ? (
-              <div className="document-grid">
-                {documents.map(doc => (
-                  <div key={doc.id} className="document-card glass-panel">
-                    <div className="doc-header">
-                      <div className="doc-icon"><FileText size={24} /></div>
-                      <div className="doc-info">
-                        <div className="doc-filename" title={doc.filename}>{doc.filename}</div>
-                        <div className="doc-date">{format(new Date(doc.created_at), 'MMM d, h:mm a')}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {renderStatus(doc.status)}
-                      <button 
-                        className="btn btn-icon btn-danger" 
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        style={{ padding: '0.25rem', border: 'none', background: 'transparent' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    {doc.error_message && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--danger-color)', marginTop: '0.5rem' }}>
-                        {doc.error_message}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                No documents uploaded yet.
-              </div>
+            {activeTab === 'documents' && (
+              <DocumentsTab 
+                documents={documents}
+                isUploading={isUploading}
+                onFileUpload={handleFileUpload}
+                onDeleteDocument={handleDeleteDocument}
+              />
+            )}
+
+            {activeTab === 'retrieval' && (
+              <RetrievalPlaygroundTab 
+                onRetrieve={handleRetrieveTest}
+                retrievedChunks={retrievedChunks}
+                isSearching={isSearching}
+              />
+            )}
+
+            {activeTab === 'chat' && (
+              <ChatTab 
+                chatHistory={chatHistory}
+                isChatSending={isChatSending}
+                onChatSubmit={handleChatSubmit}
+              />
             )}
           </>
         ) : (
@@ -242,42 +244,6 @@ function App() {
           </div>
         )}
       </div>
-
-      {/* Modal */}
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content glass-panel" onClick={e => e.stopPropagation()}>
-            <h2 className="title" style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>Create Collection</h2>
-            <form onSubmit={handleCreateCollection}>
-              <div className="input-group">
-                <label className="input-label">Name</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="e.g., HR Policies" 
-                  value={newColName}
-                  onChange={e => setNewColName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Description (Optional)</label>
-                <input 
-                  type="text" 
-                  className="input-field" 
-                  placeholder="Brief description..." 
-                  value={newColDesc}
-                  onChange={e => setNewColDesc(e.target.value)}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                <button type="button" className="btn" onClick={() => setIsModalOpen(false)} style={{ flex: 1 }}>Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!newColName.trim()}>Create</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

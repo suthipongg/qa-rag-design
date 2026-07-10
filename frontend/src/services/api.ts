@@ -56,5 +56,28 @@ export const api = {
   deleteDocument: async (documentId: number): Promise<void> => {
     const res = await fetch(`${API_BASE}/documents/${documentId}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete document');
+  },
+
+  retrieveChunks: async (collectionId: number, query: string, topK: number = 5): Promise<any[]> => {
+    const res = await fetch(`${API_BASE}/collections/${collectionId}/retrieve?query=${encodeURIComponent(query)}&top_k=${topK}`);
+    if (!res.ok) throw new Error('Failed to retrieve chunks');
+    return res.json();
+  },
+
+  askQuestion: async (collectionId: number, question: string, conversationId?: string): Promise<any> => {
+    const res = await fetch(`${API_BASE}/collections/${collectionId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, conversation_id: conversationId || null })
+    });
+    if (!res.ok) throw new Error('Failed to generate answer');
+    return res.json();
+  },
+
+  getChatHistory: async (collectionId: number, conversationId: string): Promise<any[]> => {
+    const res = await fetch(`${API_BASE}/collections/${collectionId}/chat/conversations/${conversationId}`);
+    if (!res.ok) throw new Error('Failed to fetch chat history');
+    return res.json();
   }
 };
+
