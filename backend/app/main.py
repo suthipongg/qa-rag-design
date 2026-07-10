@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db.sqlite.connection import init_db_manager
-from app.routers import collections
+from app.routers import collections, documents
 
 
 @asynccontextmanager
@@ -53,6 +53,7 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(collections.router, prefix="/api")
+    app.include_router(documents.router, prefix="/api")
 
     return app
 

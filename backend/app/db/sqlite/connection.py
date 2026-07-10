@@ -36,8 +36,5 @@ def get_db_manager() -> SQLiteManager:
 
 async def get_db() -> AsyncSession:
     manager = get_db_manager()
-    session = manager.session_factory()
-    try:
+    async with manager.session_factory() as session:
         yield session
-    finally:
-        session.close()

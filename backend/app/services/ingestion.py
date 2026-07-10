@@ -1,0 +1,81 @@
+import os
+from fastapi import UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.db.sqlite.models import Document, DocumentStatus, Collection
+from app.utils.extractors import extract_text_content
+
+
+UPLOAD_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+    "uploads"
+)
+
+
+def ensure_upload_dir():
+    if not os.path.exists(UPLOAD_DIR):
+        os.makedirs(UPLOAD_DIR)
+
+
+async def ingest_document(
+    collection_id: int, 
+    file: UploadFile, 
+    db: AsyncSession
+) -> Document:
+    ensure_upload_dir()
+    
+    result = await db.execute(select(Collection).where(Collection.id == collection_id))
+    collection = result.scalar_one_or_none()
+    if not collection:
+        raise ValueError(f"Collection {collection_id} not found")
+        
+    filename = file.filename or "unknown_file"
+    ext = filename.split(".")[-1].lower() if "." in filename else ""
+    
+    if ext not in ["pdf", "md", "txt", "csv", "xlsx", "xls"]:
+        raise ValueError(f"Unsupported file format: .{ext}")
+        
+    file_path = os.path.join(UPLOAD_DIR, f"{collection_id}_{filename}")
+    
+    await file.seek(0)
+    file_content = await file.read()
+    
+    with open(file_path, "wb") as buffer:
+        buffer.write(file_content)
+        
+    doc_record = Document(
+        collection_id=collection_id,
+        filename=filename,
+        file_type=ext,
+        file_size=len(file_content),
+        status=DocumentStatus.PENDING,
+        chunk_count=0
+    )
+    db.add(doc_record)
+    await db.commit()
+    await db.refresh(doc_record)
+    
+    try:
+        doc_record.status = DocumentStatus.INDEXING
+        await db.commit()
+        
+        extracted_pages = extract_text_content(file_content, filename)
+        
+        doc_record.status = DocumentStatus.INDEXED
+        doc_record.chunk_count = len(extracted_pages)
+        await db.commit()
+        await db.refresh(doc_record)
+        
+    except Exception as e:
+        doc_record.status = DocumentStatus.FAILED
+        doc_record.error_message = str(e)
+        await db.commit()
+        await db.refresh(doc_record)
+        
+    return doc_record
+
+
+async def delete_document_file(document_path: str):
+    if os.path.exists(document_path):
+        os.remove(document_path)

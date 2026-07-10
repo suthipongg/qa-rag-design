@@ -1,0 +1,75 @@
+import os
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from app.db.sqlite.connection import get_db
+from app.db.sqlite.models import Document, Collection
+from app.schemas.documents import DocumentResponse, DocumentListResponse
+from app.schemas.common import StatusMessage
+from app.services.ingestion import ingest_document, delete_document_file, UPLOAD_DIR
+
+router = APIRouter(tags=["Documents"])
+
+
+@router.post("/collections/{collection_id}/documents", response_model=list[DocumentResponse], status_code=status.HTTP_201_CREATED)
+async def upload_documents(
+    collection_id: int,
+    files: list[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Collection).where(Collection.id == collection_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
+
+    uploaded_records = []
+    for file in files:
+        try:
+            doc = await ingest_document(collection_id, file, db)
+            uploaded_records.append(doc)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to ingest file '{file.filename}': {str(e)}")
+
+    return uploaded_records
+
+
+@router.get("/collections/{collection_id}/documents", response_model=DocumentListResponse)
+async def list_collection_documents(
+    collection_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Collection).where(Collection.id == collection_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
+
+    result = await db.execute(
+        select(Document)
+        .where(Document.collection_id == collection_id)
+        .order_by(Document.created_at.desc())
+    )
+    docs = result.scalars().all()
+    return DocumentListResponse(documents=list(docs), total=len(docs))
+
+
+@router.delete("/documents/{document_id}", response_model=StatusMessage)
+async def delete_document(
+    document_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+    if not document:
+        raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+
+    file_path = os.path.join(UPLOAD_DIR, f"{document.collection_id}_{document.filename}")
+    try:
+        await delete_document_file(file_path)
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to delete file {file_path}: {e}")
+
+    await db.delete(document)
+    await db.commit()
+
+    return StatusMessage(message=f"Document {document_id} deleted successfully")
