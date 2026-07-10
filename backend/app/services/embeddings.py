@@ -99,15 +99,25 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
             return []
         
         from google.genai import types
-        contents = [types.Content(parts=[types.Part.from_text(text=txt)]) for txt in texts]
         
-        def _embed():
-            response = self.client.models.embed_content(
-                model=self.model_name,
-                contents=contents,
-            )
-            return [{"dense": embedding.values, "sparse": None} for embedding in response.embeddings]
-        return await asyncio.to_thread(_embed)
+        batch_size = 100
+        all_results = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i + batch_size]
+            contents = [types.Content(parts=[types.Part.from_text(text=txt)]) for txt in batch_texts]
+            
+            def _embed():
+                response = self.client.models.embed_content(
+                    model=self.model_name,
+                    contents=contents,
+                )
+                return [{"dense": embedding.values, "sparse": None} for embedding in response.embeddings]
+                
+            batch_results = await asyncio.to_thread(_embed)
+            all_results.extend(batch_results)
+            
+        return all_results
 
     async def embed_query(self, text: str) -> dict[str, Any]:
         embeddings = await self.embed_documents([text])

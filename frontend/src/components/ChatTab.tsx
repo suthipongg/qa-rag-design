@@ -24,6 +24,39 @@ export function ChatTab({ chatHistory, isChatSending, onChatSubmit }: ChatTabPro
     await onChatSubmit(q);
   };
 
+  const renderMessageContent = (content: string) => {
+    const lines = content.split('\n');
+    return lines.map((line, idx) => {
+      let processed = line;
+      const isBullet = line.trim().startsWith('* ') || line.trim().startsWith('- ');
+      if (isBullet) {
+        processed = line.replace(/^\s*[\*\-]\s+/, '');
+      }
+
+      const parts = processed.split('**');
+      const elements = parts.map((part, pIdx) => {
+        if (pIdx % 2 === 1) {
+          return <strong key={pIdx}>{part}</strong>;
+        }
+        return part;
+      });
+
+      if (isBullet) {
+        return (
+          <li key={idx} style={{ marginLeft: '1.2rem', marginBottom: '0.25rem', listStyleType: 'disc' }}>
+            {elements}
+          </li>
+        );
+      }
+
+      return (
+        <div key={idx} style={{ minHeight: '1em', marginBottom: '0.25rem' }}>
+          {elements}
+        </div>
+      );
+    });
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-history">
@@ -46,7 +79,7 @@ export function ChatTab({ chatHistory, isChatSending, onChatSubmit }: ChatTabPro
               )}
 
               <div className="message-content">
-                {msg.content}
+                {renderMessageContent(msg.content)}
               </div>
 
               {/* Citations for assistant messages */}
