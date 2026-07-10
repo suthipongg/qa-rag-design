@@ -78,3 +78,11 @@ docker-compose up -d
 | Embeddings   | BGE-M3 (local) / gemini-embedding-2-preview (cloud) |
 | Vector Store | Qdrant                                              |
 | Metadata DB  | SQLite                                              |
+
+## 📄 Project Documentation
+
+To make it easy for reviewers to evaluate the assignment requirements:
+
+- **[System Architecture](docs/architecture.md)**: Full architecture breakdown, including data ingestion flow, Q&A flow, and Model Context Protocol (MCP) tool mapping.
+- **[Assumptions & Known Limitations](docs/architecture.md#assumptions--known-limitations)**: Stated constraints and limitations for this MVP.
+- **[Sample Documents](samples/)**: Public test files (e.g., HR Policy) to upload and test the RAG capability.
