@@ -36,6 +36,18 @@ cd ..
 docker-compose up -d --build
 ```
 
+> [!TIP]
+> **Instant Startup Option (No Large Model Download):**
+> By default, the system uses BGE-M3 (`EMBEDDING_PROVIDER=bge-m3`), which downloads a ~2.6GB model on its first run.
+> If you want to start instantly without local model downloads, edit your `.env` file before starting the stack and set:
+>
+> ```env
+> EMBEDDING_PROVIDER=gemini
+> EMBEDDING_MODEL=gemini-embedding-2-preview
+> ```
+>
+> _(Requires your GEMINI_API_KEY to be set)_
+
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
 - **Qdrant DB**: http://localhost:6333
