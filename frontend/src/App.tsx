@@ -185,7 +185,7 @@ function App() {
                   Click to upload a document
                 </div>
                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  Supports PDF, TXT, DOCX, MD (Max 10MB)
+                  Supports PDF, TXT, DOCX, MD, CSV, Excel (Max 10MB)
                 </div>
               </div>
               {isUploading && <div style={{ color: 'var(--accent-color)' }}>Uploading...</div>}
@@ -194,7 +194,7 @@ function App() {
                 ref={fileInputRef} 
                 style={{ display: 'none' }} 
                 onChange={handleFileUpload}
-                accept=".pdf,.txt,.md,.docx"
+                accept=".pdf,.txt,.md,.docx,.csv,.xlsx,.xls"
               />
             </div>
 
