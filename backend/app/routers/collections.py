@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -81,11 +81,21 @@ async def get_collection(collection_id: int, db: AsyncSession = Depends(get_db))
 
 
 @router.delete("/{collection_id}", response_model=StatusMessage)
-async def delete_collection(collection_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_collection(
+    collection_id: int, 
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(Collection).where(Collection.id == collection_id))
     collection = result.scalar_one_or_none()
     if not collection:
         raise HTTPException(status_code=404, detail=f"Collection {collection_id} not found")
+
+    try:
+        indexing_service = request.app.state.indexing
+        await indexing_service.delete_collection(collection_id)
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to delete Qdrant collection {collection_id}: {e}")
 
     await db.delete(collection)
     await db.commit()

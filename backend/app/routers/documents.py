@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -56,6 +56,7 @@ async def list_collection_documents(
 @router.delete("/documents/{document_id}", response_model=StatusMessage)
 async def delete_document(
     document_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(Document).where(Document.id == document_id))
@@ -68,6 +69,12 @@ async def delete_document(
         await delete_document_file(file_path)
     except Exception as e:
         print(f"⚠️ Warning: Failed to delete file {file_path}: {e}")
+
+    try:
+        indexing_service = request.app.state.indexing
+        await indexing_service.delete_document_vectors(document.collection_id, document.id)
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to delete vectors for document {document_id}: {e}")
 
     await db.delete(document)
     await db.commit()
