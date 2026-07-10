@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # LLM - Gemini
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
+    CONTEXT_WINDOW: int = 5
 
     # Embedding
     EMBEDDING_PROVIDER: str = "bge-m3"  # "bge-m3" | "gemini"
