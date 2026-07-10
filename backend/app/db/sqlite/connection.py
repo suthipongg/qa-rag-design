@@ -19,22 +19,8 @@ class SQLiteManager:
         await self.engine.dispose()
 
 
-_db_manager: SQLiteManager | None = None
-
-
 def init_db_manager(database_url: str, debug: bool = False) -> SQLiteManager:
-    global _db_manager
-    _db_manager = SQLiteManager(database_url, debug)
-    return _db_manager
+    return SQLiteManager(database_url, debug)
 
 
-def get_db_manager() -> SQLiteManager:
-    if _db_manager is None:
-        raise RuntimeError("SQLiteManager has not been initialized.")
-    return _db_manager
 
-
-async def get_db() -> AsyncSession:
-    manager = get_db_manager()
-    async with manager.session_factory() as session:
-        yield session

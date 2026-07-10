@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.db.sqlite.connection import get_db
+from app.dependencies import get_db
 from app.db.sqlite.models import Document, Collection
 from app.schemas.documents import DocumentResponse, DocumentListResponse
 from app.schemas.common import StatusMessage

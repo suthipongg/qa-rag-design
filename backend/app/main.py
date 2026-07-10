@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     
     db_manager = init_db_manager(database_url=settings.DATABASE_URL, debug=settings.DEBUG)
     await db_manager.init_db()
+    app.state.db_manager = db_manager
     print("✅ Database ready")
     
     yield

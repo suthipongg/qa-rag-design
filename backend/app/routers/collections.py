@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
-from app.db.sqlite.connection import get_db
+from app.dependencies import get_db
 from app.db.sqlite.models import Collection, Document
 from app.schemas.collections import (
     CollectionCreate,
