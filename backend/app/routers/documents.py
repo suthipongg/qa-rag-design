@@ -1,5 +1,5 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -7,7 +7,7 @@ from app.dependencies import get_db
 from app.db.sqlite.models import Document, Collection
 from app.schemas.documents import DocumentResponse, DocumentListResponse
 from app.schemas.common import StatusMessage
-from app.services.ingestion import ingest_document, delete_document_file
+from app.services.ingestion import ingest_document, process_document_background, delete_document_file
 
 router = APIRouter(tags=["Documents"])
 
@@ -16,6 +16,7 @@ router = APIRouter(tags=["Documents"])
 async def upload_documents(
     collection_id: int,
     request: Request,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     db: AsyncSession = Depends(get_db)
 ):
@@ -26,16 +27,25 @@ async def upload_documents(
     uploaded_records = []
     for file in files:
         try:
-            doc = await ingest_document(
+            doc, file_path = await ingest_document(
                 collection_id=collection_id, 
                 file=file, 
                 db=db,
-                embedding_provider=request.app.state.embedding,
-                indexing_service=request.app.state.indexing,
-                chunking_service=request.app.state.chunking,
                 upload_dir=request.app.state.upload_dir
             )
             uploaded_records.append(doc)
+            
+            background_tasks.add_task(
+                process_document_background,
+                document_id=doc.id,
+                file_path=file_path,
+                filename=doc.filename,
+                collection_id=collection_id,
+                session_factory=request.app.state.db_manager.session_factory,
+                embedding_provider=request.app.state.embedding,
+                indexing_service=request.app.state.indexing,
+                chunking_service=request.app.state.chunking
+            )
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve))
         except Exception as e:
