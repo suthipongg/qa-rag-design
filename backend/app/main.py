@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db.sqlite.connection import init_db_manager
 from app.routers import collections, documents
+from app.services.embeddings import get_embedding_provider
 
 
 @asynccontextmanager
@@ -20,6 +21,11 @@ async def lifespan(app: FastAPI):
     app.state.db_manager = db_manager
     print("✅ Database ready")
     
+    embedding = get_embedding_provider(
+        provider=settings.EMBEDDING_PROVIDER,
+        model_name=settings.EMBEDDING_MODEL,
+        api_key=settings.GEMINI_API_KEY
+    )
     yield
     
     print("👋 Shutting down...")

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Embedding
     EMBEDDING_PROVIDER: str = "bge-m3"  # "bge-m3" | "gemini"
-    BGE_MODEL_NAME: str = "BAAI/bge-m3"
+    EMBEDDING_MODEL: str = "BAAI/bge-m3"
 
     # Qdrant
     QDRANT_HOST: str = "localhost"
