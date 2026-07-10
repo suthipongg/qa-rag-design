@@ -5,11 +5,11 @@ import uuid
 
 
 class IndexingService:
-    def __init__(self, client: AsyncQdrantClient, embedding):
+    def __init__(self, client: AsyncQdrantClient, embed_collection:str, embedding):
         self.client = client
         self.embedding_provider = embedding
         self.dimension = self.embedding_provider.get_dimension()
-        self.collection_name = "knowledge_base"
+        self.collection_name = embed_collection
 
     async def ensure_collection(self) -> None:
         exists = await self.client.collection_exists(self.collection_name)

@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     # Qdrant
     QDRANT_HOST: str = "localhost"
     QDRANT_PORT: int = 6333
+    EMBED_COLLECTION: str = "knowledge_base"
 
     # SQLite
     DATABASE_URL: str = "sqlite:///./app_data.db"
