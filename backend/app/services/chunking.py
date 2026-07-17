@@ -5,7 +5,7 @@ class ChunkingService:
     def __init__(self, chunk_size: int, chunk_overlap: int):
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.separators = ["\n\n", "\n", " ", ""]
+        self.separators = ["\n\n", "\n", " "]
 
     def _split_text_recursively(self, text: str, separators: List[str]) -> List[str]:
         if len(text) <= self.chunk_size:
